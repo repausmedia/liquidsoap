@@ -115,6 +115,10 @@ endif
 	$(V)echo OCAMLLEX $<
 	$(V)$(OCAMLLEX) $<
 
+%.ml: %.mll
+	@echo $(@:.ml=.mli) $(@:.mli=.ml) >> auto_clean
+	$(V)echo OCAMLLEX $<
+	$(V)$(OCAMLLEX) $<
 %.ml %.mli: %.mly
 	@echo $(<:.mly=.mli) $(<:.mly=.ml) $(<:.mly=.conflicts) >> auto_clean
 	$(V)echo MENHIR $<
