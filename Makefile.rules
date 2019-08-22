@@ -117,8 +117,8 @@ endif
 
 %.ml %.mli: %.mly
 	@echo $(<:.mly=.mli) $(<:.mly=.ml) $(<:.mly=.conflicts) >> auto_clean
-	$(V)echo MENHIR $<
-	$(V)$(MENHIR) --unused-tokens --explain $<
+	$(V)echo OCAMLYACC $<
+	$(V)$(OCAMLYACC) $<
 
 %.$(o): %.ml
 	$(V)echo $(OCAMLCOMP) -c $<
