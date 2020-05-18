@@ -85,7 +85,7 @@ module Transport = struct
     (buf, n)
 
   let accept sock =
-    let sock, caller = Unix.accept sock in
+    let sock, caller = Unix.accept ~cloexec:true sock in
     let ctx =
       SecureTransport.init SecureTransport.Server SecureTransport.Stream
     in
