@@ -122,11 +122,7 @@ module VideoSpecs = struct
   let compatible p p' =
     match (p, p') with
       | None, _ | _, None -> true
-      | Some p, Some p' ->
-          Video.get_params_id p = Video.get_params_id p'
-          && Video.get_width p = Video.get_width p'
-          && Video.get_height p = Video.get_height p'
-          && Video.get_pixel_format p = Video.get_pixel_format p'
+      | Some p, Some p' -> Video.get_params_id p = Video.get_params_id p'
 
   let merge = merge ~compatible
   let default_params _ = None
