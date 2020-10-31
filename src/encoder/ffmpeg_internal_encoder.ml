@@ -200,11 +200,13 @@ let mk_audio ~ffmpeg ~options output =
         flush () )
   in
 
+  let was_keyframe () = false in
+
   let encode frame start len =
     List.iter write_frame (converter frame start len)
   in
 
-  { Ffmpeg_encoder_common.mk_stream; encode }
+  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode }
 
 let mk_video ~ffmpeg ~options output =
   let codec =
@@ -276,6 +278,8 @@ let mk_video ~ffmpeg ~options output =
 
   let stream_time_base = Av.get_time_base stream in
 
+  let was_keyframe = ref false in
+
   let fps_converter ~time_base frame =
     let converter =
       get_converter ~time_base
@@ -291,7 +295,8 @@ let mk_video ~ffmpeg ~options output =
             (Avutil.frame_pts frame)
         in
         Avutil.frame_set_pts frame frame_pts;
-        Av.write_frame stream frame)
+        Av.write_frame stream frame;
+        if Av.was_keyframe stream then was_keyframe := true)
   in
 
   let internal_converter cb =
@@ -369,6 +374,11 @@ let mk_video ~ffmpeg ~options output =
       | _ -> assert false
   in
 
-  let encode = converter fps_converter in
+  let encode =
+    was_keyframe := false;
+    converter fps_converter
+  in
 
-  { Ffmpeg_encoder_common.mk_stream; encode }
+  let was_keyframe () = !was_keyframe in
+
+  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode }

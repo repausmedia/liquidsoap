@@ -55,9 +55,13 @@ let mk_stream_copy ~get_data output =
       | _ -> failwith "Packet missing duration!"
   in
 
+  let was_keyframe = ref false in
+
   let encode frame start len =
     let stop = start + len in
     let data = (get_data frame).Ffmpeg_content_base.data in
+
+    was_keyframe := false;
 
     List.iter
       (fun (pos, { Ffmpeg_copy_content.packet; time_base }) ->
@@ -76,7 +80,12 @@ let mk_stream_copy ~get_data output =
           add ~duration ~time_base next_dts;
           add ~duration ~time_base next_pts;
 
-          Av.write_packet stream master_time_base packet ))
+          Av.write_packet stream master_time_base packet;
+          if List.mem `Keyframe Avcodec.Packet.(get_flags packet) then
+            was_keyframe := true ))
       data
   in
-  { Ffmpeg_encoder_common.mk_stream; encode }
+
+  let was_keyframe () = !was_keyframe in
+
+  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode }

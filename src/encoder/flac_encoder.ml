@@ -64,11 +64,18 @@ let encoder flac meta =
     Flac.Encoder.finish !enc cb;
     Strings.Mutable.flush buf
   in
+  let hls =
+    {
+      Encoder.init_encode = (fun f o l -> (None, encode f o l));
+      split_encode = (fun f o l -> `Ok (Strings.empty, encode f o l));
+    }
+  in
   {
     Encoder.insert_metadata = (fun _ -> ());
     (* Flac encoder do not support header
      * for now. It will probably never do.. *)
     header = Strings.empty;
+    hls;
     encode;
     stop;
   }

@@ -27,6 +27,7 @@ let log = Ffmpeg_utils.log
 type encoder = {
   mk_stream : Frame.t -> unit;
   encode : Frame.t -> int -> int -> unit;
+  was_keyframe : unit -> bool;
 }
 
 type handler = {
@@ -110,6 +111,34 @@ let encoder ~mk_audio ~mk_video ffmpeg meta =
     { output; audio_stream; video_stream; started = false }
   in
   let encoder = ref (make ()) in
+  let init_encode frame start len =
+    let encoder = !encoder in
+    match ffmpeg.Ffmpeg_format.format with
+      | Some "mp4" ->
+          encode ~encoder frame start len;
+          Av.flush encoder.output;
+          let init = Strings.Mutable.flush buf in
+          (Some init, Strings.empty)
+      | Some "webm" ->
+          Av.flush encoder.output;
+          let init = Strings.Mutable.flush buf in
+          encode ~encoder frame start len;
+          (Some init, Strings.Mutable.flush buf)
+      | _ ->
+          encode ~encoder frame start len;
+          (None, Strings.Mutable.flush buf)
+  in
+  let split_encode frame start len =
+    let encoder = !encoder in
+    Av.flush encoder.output;
+    let flushed = Strings.Mutable.flush buf in
+    encode ~encoder frame start len;
+    let encoded = Strings.Mutable.flush buf in
+    match encoder.video_stream with
+      | Some s when s.was_keyframe () -> `Ok (flushed, encoded)
+      | None -> `Ok (flushed, encoded)
+      | _ -> `Nope (Strings.append flushed encoded)
+  in
   let encode frame start len =
     encode ~encoder:!encoder frame start len;
     Strings.Mutable.flush buf
@@ -120,4 +149,5 @@ let encoder ~mk_audio ~mk_video ffmpeg meta =
     Av.close !encoder.output;
     Strings.Mutable.flush buf
   in
-  { Encoder.insert_metadata; header = Strings.empty; encode; stop }
+  let hls = { Encoder.init_encode; split_encode } in
+  { Encoder.insert_metadata; header = Strings.empty; hls; encode; stop }

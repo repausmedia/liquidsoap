@@ -187,7 +187,13 @@ let encoder ext =
       decr_samples ();
       Strings.of_string ans )
   in
-  { Encoder.insert_metadata; header = Strings.empty; encode; stop }
+  let hls =
+    {
+      Encoder.init_encode = (fun f o l -> (None, encode f o l));
+      split_encode = (fun f o l -> `Ok (Strings.empty, encode f o l));
+    }
+  in
+  { Encoder.insert_metadata; header = Strings.empty; hls; encode; stop }
 
 let () =
   Encoder.plug#register "GSTREAMER" (function

@@ -159,9 +159,16 @@ module Register (Fdkaac : Fdkaac_t) = struct
       Strings.Mutable.add rem (Fdkaac.Encoder.flush enc);
       Strings.Mutable.to_strings rem
     in
+    let hls =
+      {
+        Encoder.init_encode = (fun f o l -> (None, encode f o l));
+        split_encode = (fun f o l -> `Ok (Strings.empty, encode f o l));
+      }
+    in
     {
       Encoder.insert_metadata = (fun _ -> ());
       header = Strings.empty;
+      hls;
       encode;
       stop;
     }

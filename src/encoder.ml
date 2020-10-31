@@ -157,6 +157,13 @@ let extension = function
   | Shine _ -> "mp3"
   | Flac _ -> "flac"
   | FdkAacEnc _ -> "aac"
+  (* Todo: add more.. *)
+  | Ffmpeg { Ffmpeg_format.format = Some "ogg" } -> "ogg"
+  | Ffmpeg { Ffmpeg_format.format = Some "opus" } -> "opus"
+  | Ffmpeg { Ffmpeg_format.format = Some "libmp3lame" } -> "mp3"
+  | Ffmpeg { Ffmpeg_format.format = Some "mpegts" } -> "ts"
+  | Ffmpeg { Ffmpeg_format.format = Some "mp4" } -> "mp4"
+  | Ffmpeg { Ffmpeg_format.format = Some "wav" } -> "wav"
   | _ -> raise Not_found
 
 (** Mime types *)
@@ -194,24 +201,38 @@ let with_url_output encoder file =
     | _ -> failwith "No file output!"
 
 (** An encoder, once initialized, is something that consumes
-  * frames, insert metadata and that you eventually close 
-  * (triggers flushing). 
-  * Insert metadata is really meant for inline metadata, i.e.
-  * in most cases, stream sources. Otherwise, metadata are
-  * passed when creating the encoder. For instance, the mp3 
-  * encoder may accept metadata initally and write them as 
-  * id3 tags but does not support inline metadata. 
-  * Also, the ogg encoder supports inline metadata but restarts
-  * its stream. This is ok, though, because the ogg container/streams 
-  * is meant to be sequentialized but not the mp3 format. 
-  * header contains data that should be sent first to streaming 
-  * client. *)
+    frames, insert metadata and that you eventually close 
+    (triggers flushing). 
+    Insert metadata is really meant for inline metadata, i.e.
+    in most cases, stream sources. Otherwise, metadata are
+    passed when creating the encoder. For instance, the mp3 
+    encoder may accept metadata initally and write them as 
+    id3 tags but does not support inline metadata. 
+    Also, the ogg encoder supports inline metadata but restarts
+    its stream. This is ok, though, because the ogg container/streams 
+    is meant to be sequentialized but not the mp3 format. 
+    header contains data that should be sent first to streaming 
+    client. *)
+
+type split_result =
+  [ (* Returns (flushed, first_bytes_for_next_segment) *)
+    `Ok of
+    Strings.t * Strings.t
+  | `Nope of Strings.t ]
+
+type hls = {
+  (* Returns (init_segment, first_bytes) *)
+  init_encode : Frame.t -> int -> int -> Strings.t option * Strings.t;
+  split_encode : Frame.t -> int -> int -> split_result;
+}
+
 type encoder = {
   insert_metadata : Meta_format.export_metadata -> unit;
-  (* Encoder are all called from the main 
-   * thread so there's no need to protect this
-   * value with a mutex so far.. *)
+  (* Encoder are all called from the main
+     thread so there's no need to protect this
+     value with a mutex so far.. *)
   mutable header : Strings.t;
+  hls : hls;
   encode : Frame.t -> int -> int -> Strings.t;
   stop : unit -> Strings.t;
 }
@@ -219,7 +240,7 @@ type encoder = {
 type factory = string -> Meta_format.export_metadata -> encoder
 
 (** A plugin might or might not accept a given format.
-  * If it accepts it, it gives a function creating suitable encoders. *)
+    If it accepts it, it gives a function creating suitable encoders. *)
 type plugin = format -> factory option
 
 let plug : plugin Plug.plug =

@@ -72,8 +72,15 @@ let encoder wav =
       Strings.of_list [header; s] )
     else Strings.of_string s
   in
+  let hls =
+    {
+      Encoder.init_encode = (fun f o l -> (None, encode f o l));
+      split_encode = (fun f o l -> `Ok (Strings.empty, encode f o l));
+    }
+  in
   {
     Encoder.insert_metadata = (fun _ -> ());
+    hls;
     encode;
     header = Strings.of_string header;
     stop = (fun () -> Strings.empty);
