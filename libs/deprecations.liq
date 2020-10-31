@@ -11,6 +11,80 @@ def deprecated(old, new)
 end
 
 # @flag hidden
+def on_metadata(~id="",fn,s) =
+  deprecated("on_metadata", "the <source>.on_metadata(..) method")
+  s.on_metadata(fn)
+  s
+end
+
+# @flag hidden
+def on_track(~id="",fn,s) =
+  deprecated("on_track", "the <source>.on_track(..) method")
+  s.on_track(fn)
+  s
+end
+
+# @flag hidden
+def source.on_shutdown(s, fn) =
+  deprecated("source.on_shutdown", "the <source>.on_shutdown() method")
+  s.on_shutdown(fn)
+end
+
+# @flag hidden
+def source.is_up(s) =
+  deprecated("source.is_up", "the <source>.is_up() method")
+  s.is_up()
+end
+
+# @flag hidden
+def source.is_ready(s) =
+  deprecated("source.is_ready", "the <source>.is_ready() method")
+  s.is_ready()
+end
+
+# @flag hidden
+def source.id(s) =
+  deprecated("source.id", "the <source>.id() method")
+  s.id()
+end
+
+# @flag hidden
+def source.shutdown(s) =
+  deprecated("source.shutdown", "the <source>.shutdown() method")
+  s.shutdown()
+end
+
+# @flag hidden
+def source.seek(s, f) =
+  deprecated("source.seek", "the <source>.seek(..) method")
+  s.seek(f)
+end
+
+# @flag hidden
+def source.skip(s) =
+  deprecated("source.skip", "the <source>.skip() method")
+  s.skip()
+end
+
+# @flag hidden
+def source.fallible(s) =
+  deprecated("source.fallible", "the <source>.fallible() method")
+  s.fallible()
+end
+
+# @flag hidden
+def source.remaining(s) =
+  deprecated("source.remaining", "the <source>.remaining() method")
+  s.remaining()
+end
+
+# @flag hidden
+def source.time(s) =
+  deprecated("source.time", "the <source>.time() method")
+  s.time()
+end
+
+# @flag hidden
 def on_change_harbor_bind_addr(v) =
   deprecated("harbor.bind_addr", "harbor.bind_addrs")
   set("harbor.bind_addrs",[v])
@@ -229,7 +303,7 @@ def register_flow(~server="",~user="default",~password="default",
     params = [("m_title",title),("m_artist",artist)]
     thread.run(fast=false, {request(cmd="metadata",params=params)})
   end
-  on_metadata(metadata,s)
+  s.on_metadata(metadata)
 end
 
 # Deprecated: this function has been replaced by `fail`.

@@ -409,8 +409,7 @@ let print_repr f t =
         Format.fprintf f "?";
         vars
     | `Meth (l, (_, a), b) as t ->
-        (* Nice printing. Disable for debugging type inference. *)
-        if true then (
+        if not !debug then (
           (* Find all methods. *)
           let rec aux = function
             | `Meth (l, t, u) ->
@@ -1008,22 +1007,22 @@ let rec ( <: ) a b =
     | _, Meth (l, (g2, t2), u2) -> (
         try
           let g1, t1 = invoke a l in
-          try
-            (* TODO: we should perform proper type scheme subtyping, but this is
-               a good approximation for now... *)
-            instantiate ~level:(-1) ~generalized:g1 t1
-            <: instantiate ~level:(-1) ~generalized:g2 t2;
-            a <: hide_meth l u2
-          with Error (a, b) ->
-            (* TODO: it would be better to keep generalized variables here and
-               below *)
-            raise
-              (Error
-                 (`Meth (l, ([], a), `Ellipsis), `Meth (l, ([], b), `Ellipsis)))
+          (* TODO: we should perform proper type scheme subtyping, but this is
+             a good approximation for now... *)
+          instantiate ~level:(-1) ~generalized:g1 t1
+          <: instantiate ~level:(-1) ~generalized:g2 t2;
+          a <: hide_meth l u2
         with Not_found -> (
           let a' = demeth a in
           match a'.descr with
-            | EVar _ -> a' <: b
+            | EVar _ ->
+                a'
+                <: make
+                     (Meth
+                        ( l,
+                          (g2, t2),
+                          fresh ~level:(-1) ~constraints:[] ~pos:None ));
+                a <: b
             | _ -> raise (Error (repr a, `Meth (l, ([], `Ellipsis), `Ellipsis))) )
         )
     | Meth (l, _, u1), _ -> hide_meth l u1 <: b
