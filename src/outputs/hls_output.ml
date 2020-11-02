@@ -65,8 +65,7 @@ let hls_proto kind =
         Some default_name,
         Some
           "Segment name. Default: `fun (~position,~extname,stream_name) -> \
-           \"#{stream_name}_#{position}.#{extname}\"`. Initial segment, when \
-           required, has position `-1`." );
+           \"#{stream_name}_#{position}.#{extname}\"`" );
       ( "segments_overhead",
         Lang.int_t,
         Some (Lang.int 5),
@@ -575,14 +574,15 @@ class hls_output p =
         streams p;
       segments <- s
 
-    method private process_init ~init ({ extname; name } as s) =
+    method private process_init ~init ({ extname; name; position } as s) =
       match init with
         | None -> s.init_state <- `No_init
         | Some data ->
-            let init_filename = segment_name ~position:(-1) ~extname name in
+            let init_filename = segment_name ~position ~extname name in
             let oc = self#open_out init_filename in
             Strings.iter (output_substring oc) data;
             self#close_out ~filename:init_filename oc;
+            s.position <- s.position + 1;
             s.init_state <- `Has_init init_filename
 
     method encode frame ofs len =
