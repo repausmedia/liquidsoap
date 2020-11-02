@@ -85,6 +85,7 @@ type hls = {
   (* Returns (init_segment, first_bytes) *)
   init_encode : Frame.t -> int -> int -> Strings.t option * Strings.t;
   split_encode : Frame.t -> int -> int -> split_result;
+  codec_attr : unit -> string option;
 }
 
 type encoder = {

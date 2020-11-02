@@ -153,7 +153,7 @@ type stream = {
   format : Encoder.format;
   encoder : Encoder.encoder;
   bandwidth : int;
-  codec : string;  (** codec (see RFC 6381) *)
+  codec : string Lazy.t;  (** codec (see RFC 6381) *)
   extname : string;
   mutable init_state : init_state;
   mutable position : int;
@@ -256,8 +256,9 @@ class hls_output p =
             | _ -> assert false
         in
         ( Lang.to_string name,
-          (Lang.to_int bandwidth, Lang.to_string codec, Lang.to_string extname)
-        ))
+          ( Lang.to_int bandwidth,
+            lazy (Lang.to_string codec),
+            Lang.to_string extname ) ))
       l
   in
   let streams =
@@ -293,13 +294,17 @@ class hls_output p =
                       it in `streams_info`" ))
           in
           let codec =
-            try Encoder.iso_base_file_media_file_format format
-            with Not_found ->
-              raise
-                (Lang_errors.Invalid_value
-                   ( fmt,
-                     "Codec cannot be inferred from codec, please specify it \
-                      in `streams_info`" ))
+            lazy
+              ( match Encoder.(encoder.hls.codec_attr ()) with
+                | Some attr -> attr
+                | None -> (
+                    try Encoder.iso_base_file_media_file_format format
+                    with Not_found ->
+                      raise
+                        (Lang_errors.Invalid_value
+                           ( fmt,
+                             "Codec cannot be inferred from codec, please \
+                              specify it in `streams_info`" )) ) )
           in
           let extname =
             try Encoder.extension format
@@ -328,14 +333,15 @@ class hls_output p =
     let streams = List.map f streams in
     streams
   in
-  let x_version () =
-    if
-      List.find_opt
-        (fun s -> match s.init_state with `Has_init _ -> true | _ -> false)
-        streams
-      <> None
-    then 7
-    else 3
+  let x_version =
+    lazy
+      ( if
+        List.find_opt
+          (fun s -> match s.init_state with `Has_init _ -> true | _ -> false)
+          streams
+        <> None
+      then 7
+      else 3 )
   in
   let source = Lang.assoc "" 3 p in
   let main_playlist_filename = Lang.to_string (List.assoc "playlist" p) in
@@ -472,7 +478,8 @@ class hls_output p =
       output_string oc
         (Printf.sprintf "#EXT-X-TARGETDURATION:%d\r\n"
            (int_of_float (ceil segment_duration)));
-      output_string oc (Printf.sprintf "#EXT-X-VERSION:%d\r\n" (x_version ()));
+      output_string oc
+        (Printf.sprintf "#EXT-X-VERSION:%d\r\n" (Lazy.force x_version));
       output_string oc
         (Printf.sprintf "#EXT-X-MEDIA-SEQUENCE:%d\r\n" media_sequence);
       output_string oc
@@ -500,12 +507,13 @@ class hls_output p =
       self#log#debug "Writting playlist %s.." main_playlist_path;
       let oc = self#open_out main_playlist_path in
       output_string oc "#EXTM3U\r\n";
-      output_string oc (Printf.sprintf "#EXT-X-VERSION:%d\r\n" (x_version ()));
+      output_string oc
+        (Printf.sprintf "#EXT-X-VERSION:%d\r\n" (Lazy.force x_version));
       List.iter
         (fun s ->
           let line =
             Printf.sprintf "#EXT-X-STREAM-INF:BANDWIDTH=%d,CODECS=%S\r\n"
-              s.bandwidth s.codec
+              s.bandwidth (Lazy.force s.codec)
           in
           output_string oc line;
           output_string oc (s.name ^ ".m3u8\r\n"))

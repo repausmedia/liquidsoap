@@ -127,6 +127,7 @@ let encoder { Ogg_format.audio; video } =
       {
         Encoder.init_encode = (fun f o l -> (None, encode f o l));
         split_encode = (fun f o l -> `Ok (Strings.empty, encode f o l));
+        codec_attr = (fun () -> None);
       }
     and ogg_stop () =
       let f track = track.id <- None in

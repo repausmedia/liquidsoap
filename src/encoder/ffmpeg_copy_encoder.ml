@@ -33,6 +33,8 @@ let mk_stream_copy ~get_data output =
     stream := Some (Av.new_stream_copy ~params:(Option.get params) output)
   in
 
+  let codec_attr () = Av.codec_attr (Option.get !stream) in
+
   (* Keep track of latest DTS/PTS in master time_base
      since time_base can change between streams. *)
   let next_dts = ref None in
@@ -88,4 +90,4 @@ let mk_stream_copy ~get_data output =
 
   let was_keyframe () = !was_keyframe in
 
-  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode }
+  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode; codec_attr }

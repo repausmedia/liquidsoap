@@ -28,6 +28,7 @@ type encoder = {
   mk_stream : Frame.t -> unit;
   encode : Frame.t -> int -> int -> unit;
   was_keyframe : unit -> bool;
+  codec_attr : unit -> string option;
 }
 
 type handler = {
@@ -111,6 +112,12 @@ let encoder ~mk_audio ~mk_video ffmpeg meta =
     { output; audio_stream; video_stream; started = false }
   in
   let encoder = ref (make ()) in
+  let codec_attr () =
+    let encoder = !encoder in
+    match (encoder.video_stream, encoder.audio_stream) with
+      | Some s, _ | None, Some s -> s.codec_attr ()
+      | None, None -> None
+  in
   let init_encode frame start len =
     let encoder = !encoder in
     match ffmpeg.Ffmpeg_format.format with
@@ -149,5 +156,5 @@ let encoder ~mk_audio ~mk_video ffmpeg meta =
     Av.close !encoder.output;
     Strings.Mutable.flush buf
   in
-  let hls = { Encoder.init_encode; split_encode } in
+  let hls = { Encoder.init_encode; split_encode; codec_attr } in
   { Encoder.insert_metadata; header = Strings.empty; hls; encode; stop }

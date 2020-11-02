@@ -146,6 +146,7 @@ let iso_base_file_media_file_format = function
         | `Mpeg_2 `AAC_LC -> "mp4a.67"
         | `Mpeg_2 `HE_AAC -> "mp4a.67" (* TODO: check this *)
         | `Mpeg_2 `HE_AAC_v2 -> "mp4a.67" (* TODO: check this *) )
+  | Ffmpeg { Ffmpeg_format.format = Some "libmp3lame" } -> "mp4a.40.34"
   | _ -> raise Not_found
 
 (** Proposed extension for files. *)
@@ -157,10 +158,10 @@ let extension = function
   | Shine _ -> "mp3"
   | Flac _ -> "flac"
   | FdkAacEnc _ -> "aac"
-  (* Todo: add more.. *)
   | Ffmpeg { Ffmpeg_format.format = Some "ogg" } -> "ogg"
   | Ffmpeg { Ffmpeg_format.format = Some "opus" } -> "opus"
   | Ffmpeg { Ffmpeg_format.format = Some "libmp3lame" } -> "mp3"
+  | Ffmpeg { Ffmpeg_format.format = Some "matroska" } -> "mkv"
   | Ffmpeg { Ffmpeg_format.format = Some "mpegts" } -> "ts"
   | Ffmpeg { Ffmpeg_format.format = Some "mp4" } -> "mp4"
   | Ffmpeg { Ffmpeg_format.format = Some "wav" } -> "wav"
@@ -175,6 +176,12 @@ let mime = function
   | Shine _ -> "audio/mpeg"
   | Flac _ -> "audio/flex"
   | FdkAacEnc _ -> "audio/aac"
+  | Ffmpeg { Ffmpeg_format.format = Some "ogg" } -> "application/ogg"
+  | Ffmpeg { Ffmpeg_format.format = Some "opus" } -> "application/ogg"
+  | Ffmpeg { Ffmpeg_format.format = Some "libmp3lame" } -> "audio/mpeg"
+  | Ffmpeg { Ffmpeg_format.format = Some "matroska" } -> "video/x-matroska"
+  | Ffmpeg { Ffmpeg_format.format = Some "mp4" } -> "video/mp4"
+  | Ffmpeg { Ffmpeg_format.format = Some "wav" } -> "audio/wav"
   | _ -> "application/octet-stream"
 
 (** Bitrate estimation in bits per second. *)
@@ -224,6 +231,7 @@ type hls = {
   (* Returns (init_segment, first_bytes) *)
   init_encode : Frame.t -> int -> int -> Strings.t option * Strings.t;
   split_encode : Frame.t -> int -> int -> split_result;
+  codec_attr : unit -> string option;
 }
 
 type encoder = {

@@ -163,6 +163,7 @@ module Register (Fdkaac : Fdkaac_t) = struct
       {
         Encoder.init_encode = (fun f o l -> (None, encode f o l));
         split_encode = (fun f o l -> `Ok (Strings.empty, encode f o l));
+        codec_attr = (fun () -> None);
       }
     in
     {

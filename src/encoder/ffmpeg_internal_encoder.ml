@@ -139,6 +139,8 @@ let mk_audio ~ffmpeg ~options output =
       ~opts ~codec output
   in
 
+  let codec_attr () = Av.codec_attr stream in
+
   let audio_opts = Hashtbl.copy ffmpeg.Ffmpeg_format.audio_opts in
 
   Hashtbl.filter_map_inplace
@@ -206,7 +208,7 @@ let mk_audio ~ffmpeg ~options output =
     List.iter write_frame (converter frame start len)
   in
 
-  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode }
+  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode; codec_attr }
 
 let mk_video ~ffmpeg ~options output =
   let codec =
@@ -241,6 +243,8 @@ let mk_video ~ffmpeg ~options output =
       ~frame_rate:{ Avutil.num = target_fps; den = 1 }
       ~width:target_width ~height:target_height ~opts ~codec output
   in
+
+  let codec_attr () = Av.codec_attr stream in
 
   let video_opts = Hashtbl.copy ffmpeg.Ffmpeg_format.video_opts in
   Hashtbl.filter_map_inplace
@@ -381,4 +385,4 @@ let mk_video ~ffmpeg ~options output =
 
   let was_keyframe () = !was_keyframe in
 
-  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode }
+  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode; codec_attr }
