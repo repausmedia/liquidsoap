@@ -129,6 +129,7 @@ type segment = {
   discontinuous : bool;
   current_discontinuity : int;
   filename : string;
+  mutable init_filename : string option;
   mutable out_channel : out_channel option;
   mutable len : int;
 }
@@ -158,6 +159,7 @@ type stream = {
   codecs : string Lazy.t;  (** codecs (see RFC 6381) *)
   extname : string;
   mutable init_state : init_state;
+  mutable init_position : int;
   mutable position : int;
   mutable current_segment : segment option;
   mutable discontinuity_count : int;
@@ -346,7 +348,8 @@ class hls_output p =
         video_size;
         extname;
         init_state = `Todo;
-        position = 0;
+        init_position = 0;
+        position = 1;
         current_segment = None;
         discontinuity_count = 0;
       }
@@ -358,7 +361,10 @@ class hls_output p =
     lazy
       ( if
         List.find_opt
-          (fun s -> match s.init_state with `Has_init _ -> true | _ -> false)
+          (fun s ->
+            match s.current_segment with
+              | Some { init_filename = Some _ } -> true
+              | _ -> false)
           streams
         <> None
       then 7
@@ -423,7 +429,19 @@ class hls_output p =
              push_segment segment segments;
              if List.length !segments >= max_segments then (
                let segment = remove_segment segments in
-               self#unlink segment.filename ))
+               self#unlink segment.filename;
+               ignore
+                 (Option.map
+                    (fun filename ->
+                      if
+                        Sys.file_exists filename
+                        && not
+                             (List.exists
+                                (fun s ->
+                                  s.init_filename = segment.init_filename)
+                                !segments)
+                      then self#unlink filename)
+                    segment.init_filename) ))
            s.current_segment);
       s.current_segment <- None;
       self#write_playlist s;
@@ -450,6 +468,8 @@ class hls_output p =
           current_discontinuity = s.discontinuity_count;
           len = 0;
           filename;
+          init_filename =
+            (match s.init_state with `Has_init f -> Some f | _ -> None);
           out_channel = Some out_channel;
         }
       in
@@ -468,12 +488,14 @@ class hls_output p =
                (fun segment ->
                  self#close_out ~filename:segment.filename
                    (Option.get segment.out_channel);
+                 ignore
+                   (Option.map
+                      (fun filename ->
+                        if Sys.file_exists filename then self#unlink filename)
+                      segment.init_filename);
                  self#unlink segment.filename)
                s.current_segment);
-          s.current_segment <- None;
-          match s.init_state with
-            | `Has_init filename -> self#unlink filename
-            | _ -> ())
+          s.current_segment <- None)
         streams
 
     method private playlist_name s = directory ^^ s.name ^ ".m3u8"
@@ -512,10 +534,10 @@ class hls_output p =
           if segment.discontinuous then
             output_string oc "#EXT-X-DISCONTINUITY\r\n";
           if pos = 0 || segment.discontinuous then (
-            match s.init_state with
-              | `Has_init init_filename ->
+            match segment.init_filename with
+              | Some filename ->
                   output_string oc
-                    (Printf.sprintf "#EXT-X-MAP:URI=%S\r\n" init_filename)
+                    (Printf.sprintf "#EXT-X-MAP:URI=%S\r\n" filename)
               | _ -> () );
           output_string oc
             (Printf.sprintf "#EXTINF:%.03f,\r\n"
@@ -607,19 +629,23 @@ class hls_output p =
         (fun stream (name, pos, discontinuity_count) ->
           assert (name = stream.name);
           stream.discontinuity_count <- discontinuity_count;
-          stream.position <- pos)
+          stream.init_position <- pos;
+          stream.position <- pos + 1)
         streams p;
       segments <- s
 
-    method private process_init ~init ({ extname; name; position } as s) =
+    method private process_init ~init ~segment
+        ({ extname; name; init_position } as s) =
       match init with
         | None -> s.init_state <- `No_init
         | Some data ->
-            let init_filename = segment_name ~position ~extname name in
+            let init_filename =
+              segment_name ~position:init_position ~extname name
+            in
             let oc = self#open_out init_filename in
             Strings.iter (output_substring oc) data;
             self#close_out ~filename:init_filename oc;
-            s.position <- s.position + 1;
+            segment.init_filename <- Some init_filename;
             s.init_state <- `Has_init init_filename
 
     method encode frame ofs len =
@@ -631,7 +657,7 @@ class hls_output p =
               let init, encoded =
                 Encoder.(s.encoder.hls.init_encode frame ofs len)
               in
-              self#process_init ~init s;
+              self#process_init ~init ~segment s;
               (None, encoded) )
             else if segment.len + len > segment_master_duration then (
               match Encoder.(s.encoder.hls.split_encode frame ofs len) with
