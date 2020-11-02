@@ -315,6 +315,7 @@ class hls_output p =
                      "File extension cannot be inferred from codec, please \
                       specify it in `streams_info`" ))
           in
+          let extname = if extname = "mp4" then "m4s" else extname in
           (bandwidth, codec, extname)
       in
       {
