@@ -29,6 +29,8 @@ type encoder = {
   encode : Frame.t -> int -> int -> unit;
   was_keyframe : unit -> bool;
   codec_attr : unit -> string option;
+  bandwidth : unit -> int option;
+  video_size : unit -> (int * int) option;
 }
 
 type handler = {
@@ -112,11 +114,30 @@ let encoder ~mk_audio ~mk_video ffmpeg meta =
     { output; audio_stream; video_stream; started = false }
   in
   let encoder = ref (make ()) in
-  let codec_attr () =
+  let codec_attrs () =
     let encoder = !encoder in
     match (encoder.video_stream, encoder.audio_stream) with
-      | Some s, _ | None, Some s -> s.codec_attr ()
+      | Some v, Some a -> (
+          match (v.codec_attr (), a.codec_attr ()) with
+            | Some v, Some a -> Some (Printf.sprintf "%s,%s" v a)
+            | _ -> None )
+      | None, Some s | Some s, None -> s.codec_attr ()
       | None, None -> None
+  in
+  let bandwidth () =
+    let encoder = !encoder in
+    Some
+      ( List.fold_left
+          (fun cur -> function None -> cur
+            | Some s -> (
+                match s.bandwidth () with Some b -> cur + b | None -> cur ))
+          0
+          [encoder.video_stream; encoder.audio_stream]
+      / 10 )
+  in
+  let video_size () =
+    let encoder = !encoder in
+    match encoder.video_stream with Some s -> s.video_size () | None -> None
   in
   let init_encode frame start len =
     let encoder = !encoder in
@@ -156,5 +177,7 @@ let encoder ~mk_audio ~mk_video ffmpeg meta =
     Av.close !encoder.output;
     Strings.Mutable.flush buf
   in
-  let hls = { Encoder.init_encode; split_encode; codec_attr } in
+  let hls =
+    { Encoder.init_encode; split_encode; codec_attrs; bandwidth; video_size }
+  in
   { Encoder.insert_metadata; header = Strings.empty; hls; encode; stop }

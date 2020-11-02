@@ -133,6 +133,12 @@ let string_of_format = function
   | External w -> External_encoder_format.to_string w
   | GStreamer w -> Gstreamer_format.to_string w
 
+let video_size = function
+  | Ogg { Ogg_format.video = Some { Theora_format.width; height } }
+  | Ffmpeg { Ffmpeg_format.video_codec = Some _; width; height } ->
+      Some (Lazy.force width, Lazy.force height)
+  | _ -> None
+
 (** ISO Base Media File Format, see RFC 6381 section 3.3. *)
 let iso_base_file_media_file_format = function
   | MP3 _ | Shine _ -> "mp4a.40.34" (* I have also seen "mp4a.69" and "mp3" *)
@@ -231,7 +237,10 @@ type hls = {
   (* Returns (init_segment, first_bytes) *)
   init_encode : Frame.t -> int -> int -> Strings.t option * Strings.t;
   split_encode : Frame.t -> int -> int -> split_result;
-  codec_attr : unit -> string option;
+  codec_attrs : unit -> string option;
+  bandwidth : unit -> int option;
+  (* width x height *)
+  video_size : unit -> (int * int) option;
 }
 
 type encoder = {

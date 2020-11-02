@@ -48,6 +48,9 @@ val extension : format -> string
 (** Mime types *)
 val mime : format -> string
 
+(** Video size when available. *)
+val video_size : format -> (int * int) option
+
 (** Bitrate estimation in bits per second. *)
 val bitrate : format -> int
 
@@ -85,7 +88,10 @@ type hls = {
   (* Returns (init_segment, first_bytes) *)
   init_encode : Frame.t -> int -> int -> Strings.t option * Strings.t;
   split_encode : Frame.t -> int -> int -> split_result;
-  codec_attr : unit -> string option;
+  codec_attrs : unit -> string option;
+  bandwidth : unit -> int option;
+  (* width x height *)
+  video_size : unit -> (int * int) option;
 }
 
 type encoder = {

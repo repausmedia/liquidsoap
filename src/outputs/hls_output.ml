@@ -47,8 +47,9 @@ let hls_proto kind =
         Lang.string (Printf.sprintf "%s_%d.%s" sname position extname))
   in
   let stream_info_t =
+    let video_size_t = Lang.nullable_t (Lang.product_t Lang.int_t Lang.int_t) in
     Lang.product_t Lang.string_t
-      (Lang.tuple_t [Lang.int_t; Lang.string_t; Lang.string_t])
+      (Lang.tuple_t [Lang.int_t; Lang.string_t; Lang.string_t; video_size_t])
   in
   Output.proto
   @ [
@@ -105,9 +106,9 @@ let hls_proto kind =
         Some (Lang.list []),
         Some
           "Additional information about the streams. Should be a list of the \
-           form: `[(stream_name, (bandwidth, codec, extname)]`. See RFC 6381 \
-           for info about codec. Stream info are required when they cannot be \
-           inferred from the encoder." );
+           form: `[(stream_name, (bandwidth, codecs, extname, (width, \
+           height)?)]`. See RFC 6381 for info about codecs. Stream info are \
+           required when they cannot be inferred from the encoder." );
       ( "persist_at",
         Lang.nullable_t Lang.string_t,
         Some Lang.null,
@@ -152,8 +153,9 @@ type stream = {
   name : string;
   format : Encoder.format;
   encoder : Encoder.encoder;
-  bandwidth : int;
-  codec : string Lazy.t;  (** codec (see RFC 6381) *)
+  video_size : (int * int) option Lazy.t;
+  bandwidth : int Lazy.t;
+  codecs : string Lazy.t;  (** codecs (see RFC 6381) *)
   extname : string;
   mutable init_state : init_state;
   mutable position : int;
@@ -250,15 +252,22 @@ class hls_output p =
     List.map
       (fun el ->
         let name, specs = Lang.to_product el in
-        let bandwidth, codec, extname =
+        let bandwidth, codecs, extname, video_size =
           match Lang.to_tuple specs with
-            | [bandwidth; codec; extname] -> (bandwidth, codec, extname)
+            | [bandwidth; codecs; extname; video_size] ->
+                (bandwidth, codecs, extname, video_size)
             | _ -> assert false
         in
         ( Lang.to_string name,
-          ( Lang.to_int bandwidth,
-            lazy (Lang.to_string codec),
-            Lang.to_string extname ) ))
+          ( lazy (Lang.to_int bandwidth),
+            lazy (Lang.to_string codecs),
+            Lang.to_string extname,
+            lazy
+              (Option.map
+                 (fun v ->
+                   let w, h = Lang.to_product v in
+                   (Lang.to_int w, Lang.to_int h))
+                 (Lang.to_option video_size)) ) ))
       l
   in
   let streams =
@@ -281,22 +290,26 @@ class hls_output p =
           raise (Lang_errors.Invalid_value (fmt, "Unsupported format"))
       in
       let encoder = encoder_factory name Meta_format.empty_metadata in
-      let bandwidth, codec, extname =
+      let bandwidth, codecs, extname, video_size =
         try List.assoc name streams_info
         with Not_found ->
           let bandwidth =
-            try Encoder.bitrate format
-            with Not_found ->
-              raise
-                (Lang_errors.Invalid_value
-                   ( fmt,
-                     "Bandwidth cannot be inferred from codec, please specify \
-                      it in `streams_info`" ))
-          in
-          let codec =
             lazy
-              ( match Encoder.(encoder.hls.codec_attr ()) with
-                | Some attr -> attr
+              ( match Encoder.(encoder.hls.bandwidth ()) with
+                | Some b -> b
+                | None -> (
+                    try Encoder.bitrate format
+                    with Not_found ->
+                      raise
+                        (Lang_errors.Invalid_value
+                           ( fmt,
+                             "Bandwidth cannot be inferred from codec, please \
+                              specify it in `streams_info`" )) ) )
+          in
+          let codecs =
+            lazy
+              ( match Encoder.(encoder.hls.codec_attrs ()) with
+                | Some attrs -> attrs
                 | None -> (
                     try Encoder.iso_base_file_media_file_format format
                     with Not_found ->
@@ -316,14 +329,21 @@ class hls_output p =
                       specify it in `streams_info`" ))
           in
           let extname = if extname = "mp4" then "m4s" else extname in
-          (bandwidth, codec, extname)
+          let video_size =
+            lazy
+              ( match Encoder.(encoder.hls.video_size ()) with
+                | Some s -> Some s
+                | None -> Encoder.video_size format )
+          in
+          (bandwidth, codecs, extname, video_size)
       in
       {
         name;
         format;
         encoder;
         bandwidth;
-        codec;
+        codecs;
+        video_size;
         extname;
         init_state = `Todo;
         position = 0;
@@ -405,7 +425,9 @@ class hls_output p =
                let segment = remove_segment segments in
                self#unlink segment.filename ))
            s.current_segment);
-      s.current_segment <- None
+      s.current_segment <- None;
+      self#write_playlist s;
+      self#write_main_playlist
 
     method private open_segment s =
       self#log#debug "Opening segment %d for stream %s." s.position s.name;
@@ -433,8 +455,7 @@ class hls_output p =
       in
       s.current_segment <- Some segment;
       s.position <- s.position + 1;
-      if discontinuous then s.discontinuity_count <- s.discontinuity_count + 1;
-      self#write_playlist s
+      if discontinuous then s.discontinuity_count <- s.discontinuity_count + 1
 
     method private cleanup_streams =
       List.iter
@@ -504,22 +525,30 @@ class hls_output p =
 
       self#close_out ~filename oc
 
+    val mutable main_playlist_writen = false
+
     method private write_main_playlist =
-      self#log#debug "Writting playlist %s.." main_playlist_path;
-      let oc = self#open_out main_playlist_path in
-      output_string oc "#EXTM3U\r\n";
-      output_string oc
-        (Printf.sprintf "#EXT-X-VERSION:%d\r\n" (Lazy.force x_version));
-      List.iter
-        (fun s ->
-          let line =
-            Printf.sprintf "#EXT-X-STREAM-INF:BANDWIDTH=%d,CODECS=%S\r\n"
-              s.bandwidth (Lazy.force s.codec)
-          in
-          output_string oc line;
-          output_string oc (s.name ^ ".m3u8\r\n"))
-        streams;
-      self#close_out ~filename:main_playlist_filename oc
+      if not main_playlist_writen then (
+        self#log#debug "Writting playlist %s.." main_playlist_path;
+        let oc = self#open_out main_playlist_path in
+        output_string oc "#EXTM3U\r\n";
+        output_string oc
+          (Printf.sprintf "#EXT-X-VERSION:%d\r\n" (Lazy.force x_version));
+        List.iter
+          (fun s ->
+            let line =
+              Printf.sprintf "#EXT-X-STREAM-INF:BANDWIDTH=%d,CODECS=%S%s\r\n"
+                (Lazy.force s.bandwidth) (Lazy.force s.codecs)
+                ( match Lazy.force s.video_size with
+                  | None -> ""
+                  | Some (w, h) -> Printf.sprintf ",RESOLUTION=%dx%d" w h )
+            in
+
+            output_string oc line;
+            output_string oc (s.name ^ ".m3u8\r\n"))
+          streams;
+        self#close_out ~filename:main_playlist_filename oc );
+      main_playlist_writen <- true
 
     method private cleanup_playlists =
       List.iter (fun s -> self#unlink (self#playlist_name s)) streams;
@@ -538,7 +567,6 @@ class hls_output p =
                 (Printexc.to_string exn);
               self#toggle_state `Start )
         | _ -> self#toggle_state `Start );
-      self#write_main_playlist;
       List.iter self#open_segment streams;
       self#toggle_state `Streaming
 

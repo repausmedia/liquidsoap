@@ -253,7 +253,9 @@ module Register (Lame : Lame_t) = struct
         {
           Encoder.init_encode = (fun f o l -> (None, encode f o l));
           split_encode = (fun f o l -> `Ok (Strings.empty, encode f o l));
-          codec_attr = (fun () -> None);
+          codec_attrs = (fun () -> None);
+          bandwidth = (fun () -> None);
+          video_size = (fun () -> None);
         }
       in
       { insert_metadata; hls; encode; header = Strings.empty; stop }

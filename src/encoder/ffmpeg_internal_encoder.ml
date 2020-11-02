@@ -141,6 +141,10 @@ let mk_audio ~ffmpeg ~options output =
 
   let codec_attr () = Av.codec_attr stream in
 
+  let bandwidth () = Av.bandwidth stream in
+
+  let video_size () = None in
+
   let audio_opts = Hashtbl.copy ffmpeg.Ffmpeg_format.audio_opts in
 
   Hashtbl.filter_map_inplace
@@ -208,7 +212,14 @@ let mk_audio ~ffmpeg ~options output =
     List.iter write_frame (converter frame start len)
   in
 
-  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode; codec_attr }
+  {
+    Ffmpeg_encoder_common.mk_stream;
+    was_keyframe;
+    encode;
+    codec_attr;
+    bandwidth;
+    video_size;
+  }
 
 let mk_video ~ffmpeg ~options output =
   let codec =
@@ -245,6 +256,13 @@ let mk_video ~ffmpeg ~options output =
   in
 
   let codec_attr () = Av.codec_attr stream in
+
+  let bandwidth () = Av.bandwidth stream in
+
+  let video_size () =
+    let p = Av.get_codec_params stream in
+    Some (Avcodec.Video.get_width p, Avcodec.Video.get_height p)
+  in
 
   let video_opts = Hashtbl.copy ffmpeg.Ffmpeg_format.video_opts in
   Hashtbl.filter_map_inplace
@@ -385,4 +403,11 @@ let mk_video ~ffmpeg ~options output =
 
   let was_keyframe () = !was_keyframe in
 
-  { Ffmpeg_encoder_common.mk_stream; was_keyframe; encode; codec_attr }
+  {
+    Ffmpeg_encoder_common.mk_stream;
+    was_keyframe;
+    encode;
+    codec_attr;
+    bandwidth;
+    video_size;
+  }
