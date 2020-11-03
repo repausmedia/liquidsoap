@@ -27,17 +27,22 @@ open Avcodec
 let mk_stream_copy ~video_size ~get_data output =
   let stream = ref None in
   let video_size_ref = ref None in
+  let codec_attr = ref None in
+  let bitrate = ref None in
   let master_time_base = Ffmpeg_utils.liq_master_ticks_time_base () in
 
   let mk_stream frame =
     let { Ffmpeg_content_base.params } = get_data frame in
     video_size_ref := video_size frame;
-    stream := Some (Av.new_stream_copy ~params:(Option.get params) output)
+    let s = Av.new_stream_copy ~params:(Option.get params) output in
+    codec_attr := Av.codec_attr s;
+    bitrate := Av.bitrate s;
+    stream := Some s
   in
 
-  let codec_attr () = Av.codec_attr (Option.get !stream) in
+  let codec_attr () = !codec_attr in
 
-  let bitrate () = Av.bitrate (Option.get !stream) in
+  let bitrate () = !bitrate in
 
   let video_size () = !video_size_ref in
 
