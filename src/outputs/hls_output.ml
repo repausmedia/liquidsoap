@@ -106,7 +106,7 @@ let hls_proto kind =
         Some (Lang.list []),
         Some
           "Additional information about the streams. Should be a list of the \
-           form: `[(stream_name, (bitrate, codecs, extname, (width, \
+           form: `[(stream_name, (bandwidth, codecs, extname, (width, \
            height)?)]`. See RFC 6381 for info about codecs. Stream info are \
            required when they cannot be inferred from the encoder." );
       ( "persist_at",
@@ -155,7 +155,7 @@ type stream = {
   format : Encoder.format;
   encoder : Encoder.encoder;
   video_size : (int * int) option Lazy.t;
-  bitrate : int Lazy.t;
+  bandwidth : int Lazy.t;
   codecs : string Lazy.t;  (** codecs (see RFC 6381) *)
   extname : string;
   mutable init_state : init_state;
@@ -254,14 +254,14 @@ class hls_output p =
     List.map
       (fun el ->
         let name, specs = Lang.to_product el in
-        let bitrate, codecs, extname, video_size =
+        let bandwidth, codecs, extname, video_size =
           match Lang.to_tuple specs with
-            | [bitrate; codecs; extname; video_size] ->
-                (bitrate, codecs, extname, video_size)
+            | [bandwidth; codecs; extname; video_size] ->
+                (bandwidth, codecs, extname, video_size)
             | _ -> assert false
         in
         ( Lang.to_string name,
-          ( lazy (Lang.to_int bitrate),
+          ( lazy (Lang.to_int bandwidth),
             lazy (Lang.to_string codecs),
             Lang.to_string extname,
             lazy
@@ -292,13 +292,13 @@ class hls_output p =
           raise (Lang_errors.Invalid_value (fmt, "Unsupported format"))
       in
       let encoder = encoder_factory name Meta_format.empty_metadata in
-      let bitrate, codecs, extname, video_size =
+      let bandwidth, codecs, extname, video_size =
         try List.assoc name streams_info
         with Not_found ->
-          let bitrate =
+          let bandwidth =
             lazy
               ( match Encoder.(encoder.hls.bitrate ()) with
-                | Some b -> b
+                | Some b -> b + (b / 10)
                 | None -> (
                     try Encoder.bitrate format
                     with Not_found ->
@@ -337,13 +337,13 @@ class hls_output p =
                 | Some s -> Some s
                 | None -> Encoder.video_size format )
           in
-          (bitrate, codecs, extname, video_size)
+          (bandwidth, codecs, extname, video_size)
       in
       {
         name;
         format;
         encoder;
-        bitrate;
+        bandwidth;
         codecs;
         video_size;
         extname;
@@ -560,7 +560,7 @@ class hls_output p =
           (fun s ->
             let line =
               Printf.sprintf "#EXT-X-STREAM-INF:BANDWIDTH=%d,CODECS=%S%s\r\n"
-                (Lazy.force s.bitrate) (Lazy.force s.codecs)
+                (Lazy.force s.bandwidth) (Lazy.force s.codecs)
                 ( match Lazy.force s.video_size with
                   | None -> ""
                   | Some (w, h) -> Printf.sprintf ",RESOLUTION=%dx%d" w h )

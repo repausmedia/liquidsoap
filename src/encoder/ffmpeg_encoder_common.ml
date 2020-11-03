@@ -127,13 +127,12 @@ let encoder ~mk_audio ~mk_video ffmpeg meta =
   let bitrate () =
     let encoder = !encoder in
     Some
-      ( List.fold_left
-          (fun cur -> function None -> cur
-            | Some s -> (
-                match s.bitrate () with Some b -> cur + b | None -> cur ))
-          0
-          [encoder.video_stream; encoder.audio_stream]
-      / 10 )
+      (List.fold_left
+         (fun cur -> function None -> cur
+           | Some s -> (
+               match s.bitrate () with Some b -> cur + b | None -> cur ))
+         0
+         [encoder.video_stream; encoder.audio_stream])
   in
   let video_size () =
     let encoder = !encoder in
