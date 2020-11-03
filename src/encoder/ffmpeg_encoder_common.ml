@@ -29,7 +29,7 @@ type encoder = {
   encode : Frame.t -> int -> int -> unit;
   was_keyframe : unit -> bool;
   codec_attr : unit -> string option;
-  bandwidth : unit -> int option;
+  bitrate : unit -> int option;
   video_size : unit -> (int * int) option;
 }
 
@@ -124,13 +124,13 @@ let encoder ~mk_audio ~mk_video ffmpeg meta =
       | None, Some s | Some s, None -> s.codec_attr ()
       | None, None -> None
   in
-  let bandwidth () =
+  let bitrate () =
     let encoder = !encoder in
     Some
       ( List.fold_left
           (fun cur -> function None -> cur
             | Some s -> (
-                match s.bandwidth () with Some b -> cur + b | None -> cur ))
+                match s.bitrate () with Some b -> cur + b | None -> cur ))
           0
           [encoder.video_stream; encoder.audio_stream]
       / 10 )
@@ -178,6 +178,6 @@ let encoder ~mk_audio ~mk_video ffmpeg meta =
     Strings.Mutable.flush buf
   in
   let hls =
-    { Encoder.init_encode; split_encode; codec_attrs; bandwidth; video_size }
+    { Encoder.init_encode; split_encode; codec_attrs; bitrate; video_size }
   in
   { Encoder.insert_metadata; header = Strings.empty; hls; encode; stop }

@@ -37,7 +37,7 @@ let mk_stream_copy ~video_size ~get_data output =
 
   let codec_attr () = Av.codec_attr (Option.get !stream) in
 
-  let bandwidth () = Av.bandwidth (Option.get !stream) in
+  let bitrate () = Av.bitrate (Option.get !stream) in
 
   let video_size () = !video_size_ref in
 
@@ -75,6 +75,8 @@ let mk_stream_copy ~video_size ~get_data output =
       (fun (pos, { Ffmpeg_copy_content.packet; time_base }) ->
         let stream = Option.get !stream in
         if start <= pos && pos < stop then (
+          let packet = Avcodec.Packet.dup packet in
+
           init ~ts:(Packet.get_dts packet) ~time_base next_dts;
           init ~ts:(Packet.get_pts packet) ~time_base next_pts;
 
@@ -88,9 +90,10 @@ let mk_stream_copy ~video_size ~get_data output =
           add ~duration ~time_base next_dts;
           add ~duration ~time_base next_pts;
 
-          Av.write_packet stream master_time_base packet;
           if List.mem `Keyframe Avcodec.Packet.(get_flags packet) then
-            was_keyframe := true ))
+            was_keyframe := true;
+
+          Av.write_packet stream master_time_base packet ))
       data
   in
 
@@ -101,6 +104,6 @@ let mk_stream_copy ~video_size ~get_data output =
     was_keyframe;
     encode;
     codec_attr;
-    bandwidth;
+    bitrate;
     video_size;
   }

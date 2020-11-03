@@ -238,7 +238,7 @@ type hls = {
   init_encode : Frame.t -> int -> int -> Strings.t option * Strings.t;
   split_encode : Frame.t -> int -> int -> split_result;
   codec_attrs : unit -> string option;
-  bandwidth : unit -> int option;
+  bitrate : unit -> int option;
   (* width x height *)
   video_size : unit -> (int * int) option;
 }

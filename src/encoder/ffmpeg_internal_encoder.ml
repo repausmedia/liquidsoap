@@ -141,7 +141,7 @@ let mk_audio ~ffmpeg ~options output =
 
   let codec_attr () = Av.codec_attr stream in
 
-  let bandwidth () = Av.bandwidth stream in
+  let bitrate () = Av.bitrate stream in
 
   let video_size () = None in
 
@@ -217,7 +217,7 @@ let mk_audio ~ffmpeg ~options output =
     was_keyframe;
     encode;
     codec_attr;
-    bandwidth;
+    bitrate;
     video_size;
   }
 
@@ -257,7 +257,7 @@ let mk_video ~ffmpeg ~options output =
 
   let codec_attr () = Av.codec_attr stream in
 
-  let bandwidth () = Av.bandwidth stream in
+  let bitrate () = Av.bitrate stream in
 
   let video_size () =
     let p = Av.get_codec_params stream in
@@ -408,6 +408,6 @@ let mk_video ~ffmpeg ~options output =
     was_keyframe;
     encode;
     codec_attr;
-    bandwidth;
+    bitrate;
     video_size;
   }
