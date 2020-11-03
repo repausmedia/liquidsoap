@@ -740,13 +740,11 @@ let rec check ?(print_toplevel = false) ~throw ~level ~(env : T.env) e =
     | Encoder f -> e.t >: type_of_format ~pos:e.t.T.pos ~level f
     | List l ->
         List.iter (fun x -> check ~throw ~level ~env x) l;
-        let t = T.fresh_evar ~level ~pos in
-        (* Force evaluation of source term first to make sure any combination
-           of source and active_source is valid. *)
-        ignore
-          (Option.map
-             (fun e -> e.t <: t)
-             (List.find_opt (fun e -> is_source e.t) l));
+        let t =
+          List.fold_left
+            (fun t e -> T.min_type ~pos:e.t.T.pos ~level t e.t)
+            (T.fresh_evar ~level ~pos) l
+        in
         List.iter (fun e -> e.t <: t) l;
         e.t >: mk (T.List t)
     | Tuple l ->
